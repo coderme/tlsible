@@ -1,0 +1,168 @@
+---
+
+- hosts: webservers
+  tasks:
+          - name: install/upgrade openssl 
+            apt:
+                    name: openssl
+                    state: latest
+            when: enable_tls and ansible_pkg_mgr  ==  'apt'
+
+          - name: install/upgrade openssl 
+            yum:
+                    name: openssl
+                    state: latest
+                    update_cache: yes
+            when: enable_tls and ansible_pkg_mgr  ==  'yum'
+ 
+          - name: Ensure tls folder exists
+            file:
+                    path: /etc/tls/{{ item }}
+                    recurse: yes
+                    state: directory
+            loop: "{{ subdomains | default([]) }}"
+            when: enable_tls
+
+          - name: get crt stat
+            stat:
+                    path: /etc/tls/{{ item }}/crt.chained
+            loop: "{{ subdomains | default([]) }}"
+            when: enable_tls
+            register: crts
+
+          - name: create account key for letsencrypt
+            shell: openssl genrsa -out {{ account_key }}
+            args:
+              creates: "{{ account_key }}"
+            
+          - name: create key if crt is not found or older than 80 days
+            shell: openssl genrsa -out {{ item.invocation.module_args.path | dirname }}/key.new
+            loop: "{{ crts.results }}"
+            when: not item.stat.exists or item.stat.mtime | older_than(days=80)
+
+          - name: create csr from key
+            shell: >
+                    openssl req -new
+                    -key "{{ item.invocation.module_args.path | dirname }}/key.new"
+                    -out "{{ item.invocation.module_args.path | dirname }}/csr.new"
+                    -subj '/C={{ tls.country }}/ST={{ tls.state }}/L={{ tls.locale }}/CN={{ tls.organization | default( item.invocation.module_args.path | dirname | basename ) }}'
+            args:
+                    creates: "{{ item.invocation.module_args.path | dirname }}/csr.new"
+            loop: "{{ crts.results }}"
+            when: not item.stat.exists or item.stat.mtime | older_than(days=80)
+
+          - name: generate lets encrypt ssl
+            acme_certificate:
+                    acme_version: 2
+                    account_key: "{{ account_key }}"
+                    csr: "{{ item.invocation.module_args.path | dirname }}/csr.new"
+                    dest: "{{ item.invocation.module_args.path | dirname }}/crt.thin.new"
+                    chain_dest: "{{ item.invocation.module_args.path | dirname }}/crt.intermediate.new"
+                    fullchain_dest: "{{ item.invocation.module_args.path | dirname }}/crt.chained.new"
+                    terms_agreed: "{{ agreed | default('no') }}"
+                    acme_directory: https://acme-v02.api.letsencrypt.org/directory
+            loop: "{{ crts.results }}"
+            when: not item.stat.exists or item.stat.mtime | older_than(days=80)
+            register: data
+
+          - name: create directories for challanges
+            file:
+                    path: "/var/www/{{ item.invocation.module_args.fullchain_dest | dirname | basename }}/{{ item | acme_get('resource') | dirname }}"
+                    state: directory
+                    recurse: yes
+                    mode: 0755
+            when: item.changed
+            loop: "{{ data.results }}"
+
+
+          - name: copy http-01 challanges for letsencrypt to web root directory
+            copy:
+                    dest: "/var/www/{{ item.invocation.module_args.fullchain_dest| dirname | basename }}/{{ item | acme_get('resource') }}"
+                    content: "{{ item | acme_get('resource_value') }}"
+            when: item.changed
+            loop: "{{ data.results }}"
+
+          - name: ask letsencrypt to validate
+            acme_certificate:
+                    acme_version: 2
+                    account_key: "{{ account_key }}"
+                    csr: "{{ item.invocation.module_args.dest | dirname }}/csr.new"
+                    dest: "{{ item.invocation.module_args.dest }}"
+                    chain_dest: "{{ item.invocation.module_args.chain_dest }}"
+                    fullchain_dest: "{{ item.invocation.module_args.fullchain_dest}}"
+                    terms_agreed: "{{ agreed | default('no') }}"
+                    acme_directory: https://acme-v02.api.letsencrypt.org/directory
+                    data: "{{ item }}"
+            when: item.changed
+            loop: "{{ data.results }}"
+
+          - name: rename crt.chained.new -> crt.chained
+            copy:
+                    force: yes
+                    src: "{{ item.invocation.module_args.path | dirname }}/crt.chained.new"
+                    dest: "{{ item.invocation.module_args.path | dirname }}/crt.chained"
+                    remote_src: yes
+            loop: "{{ crts.results }}"
+            when: not item.stat.exists or item.stat.mtime | older_than(days=80)
+            #notify: restart nginx
+
+          - name: rename crt.intermediate.new -> crt.intermediate
+            copy:
+                    force: yes
+                    src: "{{ item.invocation.module_args.path | dirname }}/crt.intermediate.new"
+                    dest: "{{ item.invocation.module_args.path | dirname }}/crt.intermediate"
+                    remote_src: yes
+            loop: "{{ crts.results }}"
+            when: not item.stat.exists or item.stat.mtime | older_than(days=80)
+            #notify: restart nginx
+
+
+          - name: rename crt.thin.new -> crt.thin 
+            copy:
+                    force: yes
+                    src: "{{ item.invocation.module_args.path | dirname }}/crt.thin.new"
+                    dest: "{{ item.invocation.module_args.path | dirname }}/crt.thin"
+                    remote_src: yes
+            loop: "{{ crts.results }}"
+            when: not item.stat.exists or item.stat.mtime | older_than(days=80)
+            #notify: restart nginx
+
+
+          - name: rename key.new -> key
+            copy:
+                    force: yes
+                    src: "{{ item.invocation.module_args.path | dirname }}/key.new"
+                    dest: "{{ item.invocation.module_args.path | dirname }}/key"
+                    remote_src: yes
+            loop: "{{ crts.results }}"
+            when: not item.stat.exists or item.stat.mtime | older_than(days=80)
+            #notify: restart nginx
+
+
+          - name: rename csr.new -> csr
+            copy:
+                    force: yes
+                    src: "{{ item.invocation.module_args.path | dirname }}/csr.new"
+                    dest: "{{ item.invocation.module_args.path | dirname }}/csr"
+                    remote_src: yes
+            loop: "{{ crts.results | flatten(levels=1) }}"
+            when: not item.stat.exists or item.stat.mtime | older_than(days=80)
+            #notify: restart nginx
+
+          - name: find junk cert files
+            find:
+                   path: "{{ item.invocation.module_args.path | dirname }}"
+                   pattern: "*.new"
+            loop: "{{ crts.results }}"
+            register: junk
+
+
+          - name: delete junk cert files
+            file:
+                   path: "{{ item.path }}"
+                   state: absent
+            loop: "{{ junk.results | sum('files', start=[]) }}"
+
+
+
+

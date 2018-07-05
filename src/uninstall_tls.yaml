@@ -1,0 +1,24 @@
+
+---
+
+- hosts: webservers
+  tasks:
+          - name: Delete challenges dirs
+            file:
+                    path: /var/www/{{ item }}/.well-known/acme-challenge
+                    state: absent
+            loop: "{{ subdomains | default([]) }}"
+
+          - name: Delete tls cert
+            file:
+                    path: /etc/tls/{{ item }}
+                    state: absent
+            loop: "{{ subdomains | default([]) }}"
+
+          - name: Delete account_key
+            file:
+                    path: "{{ account_key }}"
+                    state: absent
+              
+
+

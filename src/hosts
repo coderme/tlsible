@@ -1,0 +1,6 @@
+# This is a sample hosts file
+# edit for your need
+
+[webservers]
+example.org   ansible_user=root 
+
