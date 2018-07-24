@@ -14,7 +14,6 @@ subdomains:
 # tls certificate details
 tls:
  country: JO
- # default to domain name if empty
  organization: example.org 
  state: Amman
  locale: Amman

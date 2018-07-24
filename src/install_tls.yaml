@@ -2,13 +2,13 @@
 
 - hosts: webservers
   tasks:
-          - name: install/upgrade openssl 
+          - name: install/upgrade openssl (apt) 
             apt:
                     name: openssl
                     state: latest
             when: enable_tls and ansible_pkg_mgr  ==  'apt'
 
-          - name: install/upgrade openssl 
+          - name: install/upgrade openssl (yum) 
             yum:
                     name: openssl
                     state: latest
@@ -45,7 +45,7 @@
                     openssl req -new
                     -key "{{ item.invocation.module_args.path | dirname }}/key.new"
                     -out "{{ item.invocation.module_args.path | dirname }}/csr.new"
-                    -subj '/C={{ tls.country }}/ST={{ tls.state }}/L={{ tls.locale }}/CN={{ tls.organization | default( item.invocation.module_args.path | dirname | basename ) }}'
+                    -subj '/C={{ tls.country }}/ST={{ tls.state }}/L={{ tls.locale }}/CN={{ item.invocation.module_args.path | dirname | basename }}'
             args:
                     creates: "{{ item.invocation.module_args.path | dirname }}/csr.new"
             loop: "{{ crts.results }}"
