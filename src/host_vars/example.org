@@ -13,10 +13,10 @@ subdomains:
 
 # tls certificate details
 tls:
- country: JO
+ country: SE
  organization: example.org 
- state: Amman
- locale: Amman
+ state: Stockholm
+ locale: Stockholm
 
 # path of the account key
 account_key: /root/letsencrypt_account_key

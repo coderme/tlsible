@@ -6,7 +6,7 @@ TLS + Ansible, is a playbook to automate issuing/renewing of letsencrypt TLS cer
 
 ## Conventions
 * Certificates will be stored in */etc/tls/* directory.
-* HTTP Challenges will be stored in a web accessable location by default */var/www/subdmain/* directory.
+* HTTP Challenges will be stored in a web accessible location by default */var/www/subdmain/* directory.
 
 ## Compatibility
 * Tested with Ansible 2.6
@@ -25,7 +25,7 @@ Each host has the following variables available:
 * *agreed*: (bool) say 'yes' to letsencrypt TOS.
 
 ## Usage
-* Clone this repository, edit hosts or use it as template.
+* Clone this repository, edit 'hosts' or use it as template.
 * To get TLS certificates for your domains: *ansible-playbook -i hosts install\_tls.yaml*
 * [WARNING] to delete all certificates run: *ansible-playbook -i hosts uninstall\_tls.yaml*
 
