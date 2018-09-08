@@ -23,6 +23,7 @@ Each host has the following variables available:
 * *account_key*: (str) path where to store letsencrypt account key.
 * *account\_email*: (str) email address to get notifications when any certificate needs renewal.
 * *agreed*: (bool) say 'yes' to letsencrypt TOS.
+* *testing*: (bool) default is 'yes', change to 'no' when you ready for production.
 
 ## Usage
 * Clone this repository, edit 'hosts' or use it as template.

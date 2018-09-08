@@ -27,6 +27,10 @@ account_email: certs@example.org
 # agreement is REQUIRED to be able to sign your certificate with letsencrpt, change the following to yes if you agreed.
 agreed: no
 
+# set testing to "no" when used on production domains
+testing: yes
+
+
 
 
 

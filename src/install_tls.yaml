@@ -51,7 +51,21 @@
             loop: "{{ crts.results }}"
             when: not item.stat.exists or item.stat.mtime | older_than(days=80)
 
-          - name: generate lets encrypt ssl
+          - name: generate lets encrypt ssl (testing)
+            acme_certificate:
+                    acme_version: 2
+                    account_key: "{{ account_key }}"
+                    csr: "{{ item.invocation.module_args.path | dirname }}/csr.new"
+                    dest: "{{ item.invocation.module_args.path | dirname }}/crt.thin.new"
+                    chain_dest: "{{ item.invocation.module_args.path | dirname }}/crt.intermediate.new"
+                    fullchain_dest: "{{ item.invocation.module_args.path | dirname }}/crt.chained.new"
+                    terms_agreed: "{{ agreed | default('no') }}"
+                    acme_directory: https://acme-staging-v02.api.letsencrypt.org/directory
+            loop: "{{ crts.results }}"
+            when: testing and (not item.stat.exists or item.stat.mtime | older_than(days=80))
+            register: data
+
+          - name: generate lets encrypt ssl (production)
             acme_certificate:
                     acme_version: 2
                     account_key: "{{ account_key }}"
@@ -62,9 +76,9 @@
                     terms_agreed: "{{ agreed | default('no') }}"
                     acme_directory: https://acme-v02.api.letsencrypt.org/directory
             loop: "{{ crts.results }}"
-            when: not item.stat.exists or item.stat.mtime | older_than(days=80)
+            when: not testing and (not item.stat.exists or item.stat.mtime | older_than(days=80))
             register: data
-
+  
           - name: create directories for challanges
             file:
                     path: "/var/www/{{ item.invocation.module_args.fullchain_dest | dirname | basename }}/{{ item | acme_get('resource') | dirname }}"
@@ -82,7 +96,7 @@
             when: item.changed
             loop: "{{ data.results }}"
 
-          - name: ask letsencrypt to validate
+          - name: ask letsencrypt to validate (testing)
             acme_certificate:
                     acme_version: 2
                     account_key: "{{ account_key }}"
@@ -93,8 +107,24 @@
                     terms_agreed: "{{ agreed | default('no') }}"
                     acme_directory: https://acme-v02.api.letsencrypt.org/directory
                     data: "{{ item }}"
-            when: item.changed
+            when: testing and item.changed
             loop: "{{ data.results }}"
+
+
+          - name: ask letsencrypt to validate (production)
+            acme_certificate:
+                    acme_version: 2
+                    account_key: "{{ account_key }}"
+                    csr: "{{ item.invocation.module_args.dest | dirname }}/csr.new"
+                    dest: "{{ item.invocation.module_args.dest }}"
+                    chain_dest: "{{ item.invocation.module_args.chain_dest }}"
+                    fullchain_dest: "{{ item.invocation.module_args.fullchain_dest}}"
+                    terms_agreed: "{{ agreed | default('no') }}"
+                    acme_directory: https://acme-v02.api.letsencrypt.org/directory
+                    data: "{{ item }}"
+            when: not testing and item.changed
+            loop: "{{ data.results }}"
+
 
           - name: rename crt.chained.new -> crt.chained
             copy:
